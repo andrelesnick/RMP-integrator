@@ -1,6 +1,24 @@
 {
-    "name": "Getting Started Example",
-    "description": "Build an Extension!",
+    "name": "RMP Integrator",
+    "description": "Integrates RMP ratings into BU course pages",
     "version": "1.0",
-    "manifest_version": 3
+    "manifest_version": 3,
+    "background": {
+        "service_worker": "background.js"
+      },
+    "host_permissions": [
+      "https://www.ratemyprofessors.com/ShowRatings.jsp?*"
+    ],
+    "permissions": ["storage", "activeTab", "scripting"],
+    "action": {
+        "default_popup": "popup.html"
+      },
+    "options_page": "options.html",
+    "content_scripts": [
+      {
+        "run_at" : "document_end",
+        "matches": ["https://www.bu.edu/link/bin/uiscgi_studentlink.pl/*"],
+        "js": ["content-script.js"]
+      }
+    ]
   }
