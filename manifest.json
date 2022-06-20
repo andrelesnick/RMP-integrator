@@ -17,7 +17,7 @@
     "content_scripts": [
       {
         "run_at" : "document_end",
-        "matches": ["https://www.bu.edu/link/bin/uiscgi_studentlink.pl/*"],
+        "matches": ["https://www.bu.edu/phpbin/course-search/*"],
         "js": ["content-script.js"]
       }
     ]

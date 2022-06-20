@@ -1,12 +1,21 @@
+/* 6/20/22:
+    current situation: Need to figure out how to 1) grab names from course search, 2) display ratings. 
+    Looks like best way might be to make a popup so that it gets the DOM from the current active tab, then reads the prof names
+    from the table, then either displays the info in the popup or appends it to the table somehow.
+
+    to do this I'd need to change the script so that it doesn't immediately search for a name as soon as you load course search,
+    instead it'd just rely on the current tab and popup
+*/
 // elements mapped to their class names
 var element_mappings = {
-    numProfessors: '#root > div > div > div:nth-child(4) > div.SearchResultsPage__StyledSearchResultsPage-sc-1srop1v-0.kdXwyM > div.SearchResultsPage__SearchResultsWrapper-sc-1srop1v-1.gsOeEv > div.SearchResultsPage__SearchResultsPageHeader-sc-1srop1v-3.flHcYr > div > h1',
+    numProfessors: 'SearchResultsPage__SearchResultsPageHeader-sc-1srop1v-3 flHcYr',
     overallRating: ['#root > div > div > div:nth-child(4) > div.SearchResultsPage__StyledSearchResultsPage-sc-1srop1v-0.kdXwyM > div.SearchResultsPage__SearchResultsWrapper-sc-1srop1v-1.gsOeEv > div:nth-child(3) > a > div > div.TeacherCard__NumRatingWrapper-syjs0d-2.joEEbw > div > div.CardNumRating__CardNumRatingNumber-sc-17t4b9u-2.gcFhmN', '#root > div > div > div:nth-child(4) > div.SearchResultsPage__StyledSearchResultsPage-sc-1srop1v-0.kdXwyM > div.SearchResultsPage__SearchResultsWrapper-sc-1srop1v-1.gsOeEv > div:nth-child(3) > a > div > div.TeacherCard__NumRatingWrapper-syjs0d-2.joEEbw > div > div.CardNumRating__CardNumRatingNumber-sc-17t4b9u-2.bUneqk', '#root > div > div > div:nth-child(4) > div.SearchResultsPage__StyledSearchResultsPage-sc-1srop1v-0.kdXwyM > div.SearchResultsPage__SearchResultsWrapper-sc-1srop1v-1.gsOeEv > div:nth-child(3) > a > div > div.TeacherCard__NumRatingWrapper-syjs0d-2.joEEbw > div > div.CardNumRating__CardNumRatingNumber-sc-17t4b9u-2.icXUyq'],
     dept: 'CardSchool__Department-sc-19lmz2k-0 haUIRO',
     takeAgain: '#root > div > div > div:nth-child(4) > div.SearchResultsPage__StyledSearchResultsPage-sc-1srop1v-0.kdXwyM > div.SearchResultsPage__SearchResultsWrapper-sc-1srop1v-1.gsOeEv > div:nth-child(3) > a:nth-child(1) > div > div.TeacherCard__CardInfo-syjs0d-1.fkdYMc > div.CardFeedback__StyledCardFeedback-lq6nix-0.frciyA > div:nth-child(1) > div',
     numRatings: 'CardNumRating__CardNumRatingCount-sc-17t4b9u-3 jMRwbg',
     difficulty: 'CardFeedback__CardFeedbackNumber-lq6nix-2 hroXqf',
-    noProfFound: "NoResultsFoundArea__NoResultsFoundHeader-mju9e6-1 dVgkql"
+    noProfFound: "NoResultsFoundArea__NoResultsFoundHeader-mju9e6-1 dVgkql",
+    relayStore: 'body > script:nth-child(5)'
 }
 
 console.log("content-script.js running")
@@ -19,19 +28,69 @@ console.log("content-script.js running")
 //     console.log("Overall rating: " + overallRating);
 // });
 
-function scrapeOverallRating(doc){
-    console.log("mapping:",element_mappings.overallRating);
-    return doc.getElementsByClassName(element_mappings.overallRating);
-}
-function checkRatings(prof_name, doc) {
-    // check if professor exists
+fetch("https://www.ratemyprofessors.com/search/teachers?query=" + encodeURI(request.names[i]) + "&sid=U2Nob29sLTEyNA==")
+          .then(response => response.text())
+          .then(text => ratings.set(request.names[i], text))
+          .catch(error => console.log("Error: " + error));
 
-    // does not exist OR more than one professor with that exact name
-    if (doc.getElementsByClassName(noProfFound)[0] != undefined || !doc.querySelector(numProfessors).innerText.startsWith('1 professor')) {
-        return null
-    }
-    ratings = {}
+chrome.runtime.sendMessage({name: ["Smith"]}, async function(response) {
+    var parser = new DOMParser()
+    var doc = parser.parseFromString(response.returned_text, "text/html")
+    console.log("parsing RMP doc")
+    let ratings = checkRatings(doc)
+    console.log(ratings)
     
+})
+
+// function scrapeOverallRating(doc){
+//     console.log("mapping:",element_mappings.overallRating);
+//     return doc.getElementsByClassName(element_mappings.overallRating);
+// } 
+
+// old checkRatings
+// function checkRatings(doc) {
+//     console.log(doc)
+//     // check if professor exists
+//     // does not exist OR more than one professor with that exact name
+//     if (doc.getElementsByClassName(element_mappings.noProfFound)[0] != undefined || !doc.getElementsByClassName(element_mappings.numProfessors)[0].innerText.startsWith('1 professor')) {
+//         return "prof does not exist"
+//     }
+//     // professor exists, so now we get all their ratings
+//     console.log("prof exists...")
+//     ratings = {}
+//     ratings.overall = findRating(element_mappings.overallRating, doc)
+//     ratings.takeAgain = findRating(element_mappings.takeAgain, doc)
+//     ratings.numRatings = findRating(element_mappings.numRatings, doc)
+//     ratings.difficulty = findRating(element_mappings.difficulty, doc)
+
+//     return ratings
+// }
+
+function checkRatings(doc) {
+    console.log(doc)
+    let data = doc.querySelector(element_mappings.relayStore).innerText
+    console.log("data: " + data)
+    // check if professor exists
+    // does not exist OR more than one professor with that exact name
+    let start = data.indexOf("avgRating")
+    if (start === -1) {return "No professor"}
+    // professor exists, so now we get all their ratings
+    console.log("prof exists...")
+    ratings = {}
+    ratings.overall = parseFloat(data.match('(?<=avgRating":).*?(?=,)'))
+    ratings.numRatings = parseFloat(data.match('(?<=numRatings":).*?(?=,)'))
+    ratings.takeAgain = parseFloat(data.match('(?<=wouldTakeAgainPercent":).*?(?=,)'))
+    ratings.difficulty = parseFloat(data.match('(?<=avgDifficulty":).*?(?=,)'))
+
+    return ratings
+}
+
+
+// below functions used in the BU course search page
+
+function xpathRating(doc) {
+    let data = doc.evaluate("/html/body/script[2]/text()", doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue
+    console.log(data)
 }
 
 function findRating(category, doc) {
@@ -44,7 +103,7 @@ function findRating(category, doc) {
             return elem.innerText
         }
     }
-    console.log("rating not found")
+    console.log("rating ", category, " not found")
     return null
 
 }
