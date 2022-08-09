@@ -28,19 +28,55 @@ console.log("content-script.js running")
 //     console.log("Overall rating: " + overallRating);
 // });
 
-fetch("https://www.ratemyprofessors.com/search/teachers?query=" + encodeURI(request.names[i]) + "&sid=U2Nob29sLTEyNA==")
-          .then(response => response.text())
-          .then(text => ratings.set(request.names[i], text))
-          .catch(error => console.log("Error: " + error));
+// fetch("https://www.ratemyprofessors.com/search/teachers?query=" + encodeURI(request.names[i]) + "&sid=U2Nob29sLTEyNA==")
+//           .then(response => response.text())
+//           .then(text => ratings.set(request.names[i], text))
+//           .catch(error => console.log("Error: " + error));
 
-chrome.runtime.sendMessage({name: ["Smith"]}, async function(response) {
+let ratings = new Map()
+
+function getProfessors() {
+    console.log("fetching professors")
+    let table_cells = document.querySelectorAll("#body-tag > main > div > div > div > table > tbody > tr > td")
+    let professors = []
+    for (let i = 2; i < table_cells.length; i+=8) {
+        let name = table_cells.item(i).innerText
+        if (!professors.includes(name)) {
+            professors.push(name)
+        }
+    }
+    return professors
+}
+function addRating(prof, text) {
+    console.log("text = " + text)
+    console.log("addrating text: " + text.res)
     var parser = new DOMParser()
-    var doc = parser.parseFromString(response.returned_text, "text/html")
-    console.log("parsing RMP doc")
-    let ratings = checkRatings(doc)
-    console.log(ratings)
-    
-})
+    var doc = parser.parseFromString(text.res, "text/html")
+    rating = checkRatings(doc)
+    console.log("parsed RMP doc")
+    console.log("> " + doc)
+    console.log("adding rating: " + prof + ":" + rating)
+    ratings.set(prof, rating)
+}
+fetchRatings()
+function fetchRatings() {
+    let profs = getProfessors()
+    for (let i = 0; i < profs.length; i++) {
+        let prof_url = "https://www.ratemyprofessors.com/search/teachers?query=" + encodeURI(profs[i]) + "&sid=U2Nob29sLTEyNA=="
+        console.log("fetching: " + prof_url)
+        let resp = chrome.runtime.sendMessage({url:prof_url}, response => addRating(profs[i], response))
+        // console.log("resolved: " + resp.then(data => data).catch(error => console.log("Error: " + error)))
+        for (let j = 0, keys = Object.keys(ratings), ii = keys.length; j < ii; j++) {
+            console.log(keys[j] + '|' + ratings[keys[j]].list);
+          }
+        
+    }
+}
+    //     var parser = new DOMParser()
+    // var doc = parser.parseFromString(response.returned_text, "text/html")
+    // console.log("parsing RMP doc")
+    // let ratings = checkRatings(doc)
+    // console.log(ratings)
 
 // function scrapeOverallRating(doc){
 //     console.log("mapping:",element_mappings.overallRating);
@@ -65,7 +101,7 @@ chrome.runtime.sendMessage({name: ["Smith"]}, async function(response) {
 
 //     return ratings
 // }
-
+// checks rating for individual prof, given RMP dom
 function checkRatings(doc) {
     console.log(doc)
     let data = doc.querySelector(element_mappings.relayStore).innerText
@@ -108,14 +144,14 @@ function findRating(category, doc) {
 
 }
 
-function readProfessors(table) {
-    let professors = []
-    var len = table.rows.length
-    for (let i=1; i < len; i++) {
-        let prof = table.rows[i].cells[2]
-        if (!professors.includes(prof)) {
-            professors.push(prof)
+// function readProfessors(table) {
+//     let professors = []
+//     var len = table.rows.length
+//     for (let i=1; i < len; i++) {
+//         let prof = table.rows[i].cells[2]
+//         if (!professors.includes(prof)) {
+//             professors.push(prof)
             
-        }
-    }
-}
+//         }
+//     }
+// }

@@ -7,7 +7,7 @@
         "service_worker": "background.js"
       },
     "host_permissions": [
-      "https://www.ratemyprofessors.com/ShowRatings.jsp?*"
+      "https://www.ratemyprofessors.com/*"
     ],
     "permissions": ["storage", "activeTab", "scripting"],
     "action": {
