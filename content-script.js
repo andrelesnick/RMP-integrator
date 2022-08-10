@@ -149,7 +149,7 @@ function createRow(table, prof, ratings) {
     newRow.insertCell(0).appendChild(a)
     newRow.insertCell(1).appendChild(document.createTextNode(ratings.overall))
     newRow.insertCell(2).appendChild(document.createTextNode(ratings.difficulty))
-    newRow.insertCell(3).appendChild(document.createTextNode(Math.round(ratings.takeAgain)+"%"))
+    newRow.insertCell(3).appendChild(document.createTextNode((ratings.takeAgain > 0 ? Math.round(ratings.takeAgain)+"%" : "N/A")))
     newRow.insertCell(4).appendChild(document.createTextNode(ratings.numRatings))
     newRow.insertCell(5).appendChild(document.createTextNode(ratings.department))
 }
