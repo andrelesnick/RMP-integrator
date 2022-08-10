@@ -7,18 +7,15 @@
         "service_worker": "background.js"
       },
     "host_permissions": [
-      "https://www.ratemyprofessors.com/*"
+      "https://www.ratemyprofessors.com/ShowRatings.jsp?*"
     ],
     "permissions": ["storage", "activeTab", "scripting"],
-    "action": {
-        "default_popup": "popup.html"
-      },
-    "options_page": "options.html",
     "content_scripts": [
       {
         "run_at" : "document_end",
         "matches": ["https://www.bu.edu/phpbin/course-search/*"],
-        "js": ["content-script.js"]
+        "js": ["content-script.js"],
+        "css": ["table.css"]
       }
     ]
   }

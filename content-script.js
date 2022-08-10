@@ -1,11 +1,4 @@
-/* 6/20/22:
-    current situation: Need to figure out how to 1) grab names from course search, 2) display ratings. 
-    Looks like best way might be to make a popup so that it gets the DOM from the current active tab, then reads the prof names
-    from the table, then either displays the info in the popup or appends it to the table somehow.
 
-    to do this I'd need to change the script so that it doesn't immediately search for a name as soon as you load course search,
-    instead it'd just rely on the current tab and popup
-*/
 // elements mapped to their class names
 var element_mappings = {
     numProfessors: 'SearchResultsPage__SearchResultsPageHeader-sc-1srop1v-3 flHcYr',
@@ -18,6 +11,8 @@ var element_mappings = {
     relayStore: 'body > script:nth-child(5)'
 }
 
+let global_ratings = []
+let tab_id = undefined
 console.log("content-script.js running")
 // ///////////////////////////////
 
@@ -36,8 +31,6 @@ console.log("content-script.js running")
 //           .then(text => ratings.set(request.names[i], text))
 //           .catch(error => console.log("Error: " + error));
 
-let global_ratings = []
-
 function getProfessors() {
     console.log("fetching professors")
     let table_cells = document.querySelectorAll("#body-tag > main > div > div > div > table > tbody > tr > td")
@@ -51,52 +44,46 @@ function getProfessors() {
     return professors
 }
 
-async function addRating(prof, text) {
-    // console.log("text = " + text)
-    // console.log("addrating text: " + text.res)
-    var parser = new DOMParser()
-    var doc = parser.parseFromString(text.res, "text/html")
-    let rating = checkRatings(doc)
-    console.log("parsed RMP doc")
-    // console.log("> " + doc)
-    console.log("adding rating: " + prof + ":" + JSON.stringify(rating))
-    console.log("gratings: " + JSON.stringify(global_ratings))
-    global_ratings.push({name: prof, rating:rating})
-    console.log("gratings again: " + JSON.stringify(global_ratings))
-}
+
 
 async function fetchRatings() {
     let profs = getProfessors()
-    for (let i = 0; i < profs.length; i++) {
-        let prof_url = "https://www.ratemyprofessors.com/search/teachers?query=" + encodeURI(profs[i]) + "&sid=U2Nob29sLTEyNA=="
-        console.log("fetching: " + prof_url)
-        chrome.runtime.sendMessage({url:prof_url}, response => addRating(profs[i], response))
+        console.log("fetching ratings for " + profs)
+        chrome.runtime.sendMessage({names:profs}, response => {
+            // console.log("FETCED! response: ", response )
+        })
         // console.log("resolved: " + resp.then(data => data).catch(error => console.log("Error: " + error)))
         // for (let j = 0, keys = Object.keys(ratings), ii = keys.length; j < ii; j++) {
         //     console.log(keys[j] + '|' + ratings[keys[j]].list);
         //   }
         
-    }
 
     return Promise.resolve(true)
 }
 
-fetchRatings().then(whatev => {
-    displayRatings()
-    console.log("All ratings found. Adding to BU page now.")
-}).catch(error => console.log("Error: " + error))
-    //     var parser = new DOMParser()
-    // var doc = parser.parseFromString(response.returned_text, "text/html")
-    // console.log("parsing RMP doc")
-    // let ratings = checkRatings(doc)
-    // console.log(ratings)
+fetchRatings()
+chrome.runtime.onMessage.addListener(
+    function(request, sender) {
+        // console.log("bg request: " + JSON.stringify(request))
+        // console.log("raw length " + request.raws.length)
+        for (let i = 0; i < request.raws.length; i++) {
+            let raws = request.raws
+            addRating(raws[i].name, raws[i].raw)
+        }
+        console.log("All ratings found. Adding to BU page now.")
+        // console.log("global_ratings.length: " + global_ratings.length)
+        tab_id = request.id
+        console.log("tab id: " + tab_id)
+        displayRatings()
+        
+        return true
+    }
 
-// function scrapeOverallRating(doc){
-//     console.log("mapping:",element_mappings.overallRating);
-//     return doc.getElementsByClassName(element_mappings.overallRating);
-// } 
+    
+)
 
-// }
+
+
 // checks rating for individual prof, given RMP dom
 function checkRatings(doc) {
     console.log(doc)
@@ -113,25 +100,62 @@ function checkRatings(doc) {
     ratings.numRatings = parseFloat(data.match('(?<=numRatings":).*?(?=,)'))
     ratings.takeAgain = parseFloat(data.match('(?<=wouldTakeAgainPercent":).*?(?=,)'))
     ratings.difficulty = parseFloat(data.match('(?<=avgDifficulty":).*?(?=,)'))
-
+    ratings.department = data.match('(?<=department":").*?(?=",)')
+  
     return ratings
-}
+  }
+  
+  
+  
+  async function addRating(prof, text) {
+    //   console.log("addRating txt: " + text)
+    // console.log("text = " + text)
+    // console.log("addrating text: " + text.res)
+    var parser = new DOMParser()
+    var doc = parser.parseFromString(text, "text/html")
+    let rating = checkRatings(doc)
+    console.log("parsed RMP doc")
+    // console.log("> " + doc)
+    console.log("adding rating: " + prof + ":" + JSON.stringify(rating))
+    // console.log("gratings: " + JSON.stringify(global_ratings))
+    global_ratings.push({name: prof, rating:rating})
+    // console.log("gratings again: " + JSON.stringify(global_ratings))
+  }
+    //     var parser = new DOMParser()
+    // var doc = parser.parseFromString(response.returned_text, "text/html")
+    // console.log("parsing RMP doc")
+    // let ratings = checkRatings(doc)
+    // console.log(ratings)
+
+// function scrapeOverallRating(doc){
+//     console.log("mapping:",element_mappings.overallRating);
+//     return doc.getElementsByClassName(element_mappings.overallRating);
+// } 
+
+// }
 
 
 
 
 function createRow(table, prof, ratings) {
     let newRow = table.insertRow(-1)
-    header_row.insertCell(0).appendChild(document.createTextNode(prof))
-    header_row.insertCell(1).appendChild(document.createTextNode(ratings.overall))
-    header_row.insertCell(2).appendChild(document.createTextNode(ratings.difficulty))
-    header_row.insertCell(3).appendChild(document.createTextNode(ratings.takeAgain))
-    header_row.insertCell(4).appendChild(document.createTextNode(ratings.numRatings))
+    let url = "https://www.ratemyprofessors.com/search/teachers?query=" + encodeURI(prof) + "&sid=U2Nob29sLTEyNA=="
+    let a =  document.createElement('a')
+    let linkText = document.createTextNode(prof)
+    a.appendChild(linkText)
+    a.title = prof
+    a.href = url
+
+    newRow.insertCell(0).appendChild(a)
+    newRow.insertCell(1).appendChild(document.createTextNode(ratings.overall))
+    newRow.insertCell(2).appendChild(document.createTextNode(ratings.difficulty))
+    newRow.insertCell(3).appendChild(document.createTextNode(Math.round(ratings.takeAgain)+"%"))
+    newRow.insertCell(4).appendChild(document.createTextNode(ratings.numRatings))
+    newRow.insertCell(5).appendChild(document.createTextNode(ratings.department))
 }
 
 function displayRatings() {
-    console.log("starting displaying ratings now")
-    chrome.runtime.sendMessage({})
+    console.log("displaying ratings now")
     let new_table = document.createElement("table")
     
     let og_table = document.querySelector("#body-tag > main > div > div > div > table")
@@ -142,14 +166,20 @@ function displayRatings() {
     for (let i = 0; i < global_ratings.length; i++) {
         let pair = global_ratings[i]
         createRow(new_table, pair.name, pair.rating)
-        console.log("new table: " + new_table)
     }
 
     let header_row = new_table.insertRow(0)
     header_row.insertCell(0).appendChild(document.createTextNode("Name"))
     header_row.insertCell(1).appendChild(document.createTextNode("Overall Rating"))
     header_row.insertCell(2).appendChild(document.createTextNode("Difficulty"))
-    header_row.insertCell(3).appendChild(document.createTextNode("Take Again (%)"))
+    header_row.insertCell(3).appendChild(document.createTextNode("Take Again"))
     header_row.insertCell(4).appendChild(document.createTextNode("# Ratings"))
-}
+    header_row.insertCell(5).appendChild(document.createTextNode("Department"))
 
+
+
+    // now to add the table
+    let div = og_table.parentNode
+    div.insertBefore(new_table, og_table)
+
+}

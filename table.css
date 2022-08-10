@@ -1,0 +1,4 @@
+#body-tag > main > div > div > div > table:nth-child(1) > tbody > tr:nth-child(1) {
+    font-weight: bold;
+    /* color:black; */
+}
