@@ -19,6 +19,9 @@ var element_mappings = {
 }
 
 console.log("content-script.js running")
+// ///////////////////////////////
+
+// /////////////////////////////
 
 // chrome.runtime.sendMessage({tid: "" + 2272729}, async function(response) {
 //     var parser = new DOMParser();
@@ -33,7 +36,7 @@ console.log("content-script.js running")
 //           .then(text => ratings.set(request.names[i], text))
 //           .catch(error => console.log("Error: " + error));
 
-let ratings = new Map()
+let global_ratings = []
 
 function getProfessors() {
     console.log("fetching professors")
@@ -47,31 +50,41 @@ function getProfessors() {
     }
     return professors
 }
-function addRating(prof, text) {
-    console.log("text = " + text)
-    console.log("addrating text: " + text.res)
+
+async function addRating(prof, text) {
+    // console.log("text = " + text)
+    // console.log("addrating text: " + text.res)
     var parser = new DOMParser()
     var doc = parser.parseFromString(text.res, "text/html")
-    rating = checkRatings(doc)
+    let rating = checkRatings(doc)
     console.log("parsed RMP doc")
-    console.log("> " + doc)
-    console.log("adding rating: " + prof + ":" + rating)
-    ratings.set(prof, rating)
+    // console.log("> " + doc)
+    console.log("adding rating: " + prof + ":" + JSON.stringify(rating))
+    console.log("gratings: " + JSON.stringify(global_ratings))
+    global_ratings.push({name: prof, rating:rating})
+    console.log("gratings again: " + JSON.stringify(global_ratings))
 }
-fetchRatings()
-function fetchRatings() {
+
+async function fetchRatings() {
     let profs = getProfessors()
     for (let i = 0; i < profs.length; i++) {
         let prof_url = "https://www.ratemyprofessors.com/search/teachers?query=" + encodeURI(profs[i]) + "&sid=U2Nob29sLTEyNA=="
         console.log("fetching: " + prof_url)
-        let resp = chrome.runtime.sendMessage({url:prof_url}, response => addRating(profs[i], response))
+        chrome.runtime.sendMessage({url:prof_url}, response => addRating(profs[i], response))
         // console.log("resolved: " + resp.then(data => data).catch(error => console.log("Error: " + error)))
-        for (let j = 0, keys = Object.keys(ratings), ii = keys.length; j < ii; j++) {
-            console.log(keys[j] + '|' + ratings[keys[j]].list);
-          }
+        // for (let j = 0, keys = Object.keys(ratings), ii = keys.length; j < ii; j++) {
+        //     console.log(keys[j] + '|' + ratings[keys[j]].list);
+        //   }
         
     }
+
+    return Promise.resolve(true)
 }
+
+fetchRatings().then(whatev => {
+    displayRatings()
+    console.log("All ratings found. Adding to BU page now.")
+}).catch(error => console.log("Error: " + error))
     //     var parser = new DOMParser()
     // var doc = parser.parseFromString(response.returned_text, "text/html")
     // console.log("parsing RMP doc")
@@ -83,36 +96,19 @@ function fetchRatings() {
 //     return doc.getElementsByClassName(element_mappings.overallRating);
 // } 
 
-// old checkRatings
-// function checkRatings(doc) {
-//     console.log(doc)
-//     // check if professor exists
-//     // does not exist OR more than one professor with that exact name
-//     if (doc.getElementsByClassName(element_mappings.noProfFound)[0] != undefined || !doc.getElementsByClassName(element_mappings.numProfessors)[0].innerText.startsWith('1 professor')) {
-//         return "prof does not exist"
-//     }
-//     // professor exists, so now we get all their ratings
-//     console.log("prof exists...")
-//     ratings = {}
-//     ratings.overall = findRating(element_mappings.overallRating, doc)
-//     ratings.takeAgain = findRating(element_mappings.takeAgain, doc)
-//     ratings.numRatings = findRating(element_mappings.numRatings, doc)
-//     ratings.difficulty = findRating(element_mappings.difficulty, doc)
-
-//     return ratings
 // }
 // checks rating for individual prof, given RMP dom
 function checkRatings(doc) {
     console.log(doc)
     let data = doc.querySelector(element_mappings.relayStore).innerText
-    console.log("data: " + data)
+    // console.log("data: " + data)
     // check if professor exists
     // does not exist OR more than one professor with that exact name
     let start = data.indexOf("avgRating")
     if (start === -1) {return "No professor"}
     // professor exists, so now we get all their ratings
     console.log("prof exists...")
-    ratings = {}
+    let ratings = {}
     ratings.overall = parseFloat(data.match('(?<=avgRating":).*?(?=,)'))
     ratings.numRatings = parseFloat(data.match('(?<=numRatings":).*?(?=,)'))
     ratings.takeAgain = parseFloat(data.match('(?<=wouldTakeAgainPercent":).*?(?=,)'))
@@ -122,36 +118,38 @@ function checkRatings(doc) {
 }
 
 
-// below functions used in the BU course search page
 
-function xpathRating(doc) {
-    let data = doc.evaluate("/html/body/script[2]/text()", doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue
-    console.log(data)
+
+function createRow(table, prof, ratings) {
+    let newRow = table.insertRow(-1)
+    header_row.insertCell(0).appendChild(document.createTextNode(prof))
+    header_row.insertCell(1).appendChild(document.createTextNode(ratings.overall))
+    header_row.insertCell(2).appendChild(document.createTextNode(ratings.difficulty))
+    header_row.insertCell(3).appendChild(document.createTextNode(ratings.takeAgain))
+    header_row.insertCell(4).appendChild(document.createTextNode(ratings.numRatings))
 }
 
-function findRating(category, doc) {
-    let len = category.length
-    console.log("category: ",category," | len: ", len)
-    for (let i = 0; i < len; i++) {
-        let elem = doc.querySelector(category[i])
-        if (elem != null) {
-            console.log("rating found, i=", i)
-            return elem.innerText
-        }
+function displayRatings() {
+    console.log("starting displaying ratings now")
+    chrome.runtime.sendMessage({})
+    let new_table = document.createElement("table")
+    
+    let og_table = document.querySelector("#body-tag > main > div > div > div > table")
+    
+    // while (global_ratings.length == 0) {
+    //     console.log("waiting for ")
+    // }
+    for (let i = 0; i < global_ratings.length; i++) {
+        let pair = global_ratings[i]
+        createRow(new_table, pair.name, pair.rating)
+        console.log("new table: " + new_table)
     }
-    console.log("rating ", category, " not found")
-    return null
 
+    let header_row = new_table.insertRow(0)
+    header_row.insertCell(0).appendChild(document.createTextNode("Name"))
+    header_row.insertCell(1).appendChild(document.createTextNode("Overall Rating"))
+    header_row.insertCell(2).appendChild(document.createTextNode("Difficulty"))
+    header_row.insertCell(3).appendChild(document.createTextNode("Take Again (%)"))
+    header_row.insertCell(4).appendChild(document.createTextNode("# Ratings"))
 }
 
-// function readProfessors(table) {
-//     let professors = []
-//     var len = table.rows.length
-//     for (let i=1; i < len; i++) {
-//         let prof = table.rows[i].cells[2]
-//         if (!professors.includes(prof)) {
-//             professors.push(prof)
-            
-//         }
-//     }
-// }
